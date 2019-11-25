@@ -457,6 +457,15 @@ export class Repository {
         return result.stdout;
     }
 
+    async blame(relativePath: string, ref?: string): Promise<string> {
+        const args = ['blame', relativePath];
+        if (ref) {
+            args.push('-r', ref);
+        }
+        const result = await this.exec(args, { logErrors: false });
+        return result.stdout;
+    }
+
     async close(): Promise<string> {
         const args = ['close'];
         try{

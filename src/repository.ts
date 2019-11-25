@@ -1,6 +1,9 @@
 
-import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, commands } from 'vscode';
-import { Repository as BaseRepository, Ref, Commit, FossilError, IRepoStatus, PullOptions, FossilErrorCodes, IMergeResult, CommitDetails, LogEntryRepositoryOptions, FossilUndoDetails } from './fossilBase';
+import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlResourceState,
+         SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace,
+         commands, DecorationRangeBehavior, TextEditorDecorationType, DecorationOptions, TextEditor, Range } from 'vscode';
+import { Repository as BaseRepository, Ref, Commit, FossilError, IRepoStatus, PullOptions,
+         FossilErrorCodes, IMergeResult, CommitDetails, LogEntryRepositoryOptions, FossilUndoDetails } from './fossilBase';
 import { anyEvent, filterEvent, eventToPromise, dispose, IDisposable, delay, partition } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { StatusBarCommands } from './statusbar';
@@ -8,7 +11,8 @@ import typedConfig from "./config";
 
 import * as path from 'path';
 import * as nls from 'vscode-nls';
-import { ResourceGroup, createEmptyStatusGroups, UntrackedGroup, WorkingDirectoryGroup, StagingGroup, ConflictGroup, MergeGroup, IStatusGroups, groupStatuses, IGroupStatusesParams } from './resourceGroups';
+import { ResourceGroup, createEmptyStatusGroups, UntrackedGroup, WorkingDirectoryGroup,
+         StagingGroup, ConflictGroup, MergeGroup, IStatusGroups, groupStatuses, IGroupStatusesParams } from './resourceGroups';
 import { Path } from './fossilBase';
 import { AutoInOutState, AutoInOutStatuses, AutoIncomingOutgoing } from './autoinout';
 import { interaction, PushCreatesNewHeadAction } from './interaction';
@@ -20,6 +24,14 @@ const localize = nls.loadMessageBundle();
 const iconsRootPath = path.join(path.dirname(__dirname), 'resources', 'icons');
 
 type BadgeOptions = 'off' | 'all' | 'tracked';
+
+const annotationDecoration: TextEditorDecorationType = window.createTextEditorDecorationType({
+    after: {
+        margin: '0 0 0 3em',
+        textDecoration: 'none'
+    },
+    rangeBehavior: DecorationRangeBehavior.ClosedOpen
+});
 
 function getIconUri(iconName: string, theme: string): Uri {
     return Uri.file(path.join(iconsRootPath, theme, `${iconName}.svg`));
@@ -807,6 +819,32 @@ export class Repository implements IDisposable {
         return true;
     }
 
+    async blame(filePath: string, editor: TextEditor): Promise<DecorationOptions[]> {
+        var decorations: any[] = [];
+        const blameString = await this.repository.blame(filePath);
+        var line_num = 0;
+        for (const line of blameString.split('\n')) {
+
+            const decoration = {
+                renderOptions: {
+                    after: {
+                        color: 'gray',
+                        contentText: line.substr(0, line.indexOf(':')),
+                        fontWeight: 'normal',
+                        fontStyle: 'normal',
+                        // Pull the decoration out of the document flow if we want to be scrollable
+                        textDecoration: 'none'
+                    }
+                }
+            } as DecorationOptions;
+            decoration.range = editor.document.validateRange(new Range(line_num, Number.MAX_SAFE_INTEGER, line_num, Number.MAX_SAFE_INTEGER));
+
+            decorations.push(decoration);
+            line_num += 1;
+        }
+        return decorations
+    }
+
     async show(ref: string, filePath: string): Promise<string> {
         // TODO@Joao: should we make this a general concept?
         await this.whenIdleAndFocused();
@@ -815,6 +853,11 @@ export class Repository implements IDisposable {
             const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
             try {
                 console.log('Repository: show: relativePath: ' + relativePath + ' ref: ' + ref)
+                const editor = window.activeTextEditor
+                if (editor){
+                    const decorations = await this.blame(relativePath, editor)
+                    editor.setDecorations(annotationDecoration, decorations);
+                }
                 return await this.repository.cat(relativePath, ref)
             }
             catch (e) {
