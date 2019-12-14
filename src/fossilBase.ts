@@ -319,7 +319,7 @@ export class Fossil {
 
         let result: IExecutionResult;
         const child = this.spawn(args, options);
-        result = await exec(child, args.includes('cat'));
+        result = await exec(child, args.filter(v => (v == 'cat' || v == 'blame')).length > 0);
 
         const durationHR = process.hrtime(startTimeHR);
         this.log(`fossil ${args.join(' ')}: ${Math.floor(msFromHighResTime(durationHR))}ms\n`);

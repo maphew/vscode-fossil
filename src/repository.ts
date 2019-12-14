@@ -997,7 +997,7 @@ export class Repository implements IDisposable {
             respositoryRoot: this.repository.root,
             fileStatuses: fileStat,
             repoStatus: this._repoStatus,
-            resolveStatuses: resolveStatuses,
+            resolveStatuses: undefined /*resolveStatuses*/,
             statusGroups: this._groups
         };
 
